@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drive & Sheets Automator</title>
+    <style>
+        :root {
+            --bg: #f9fafb;
+            --card: #ffffff;
+            --primary: #2563eb;
+            --text: #1f2937;
+            --border: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: var(--card);
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: #f0f7ff;
+        }
+
+        #fileInput {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 1.5rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .success { background: #f0fdf4; color: #166534; display: block !important; }
+        .error { background: #fef2f2; color: #991b1b; display: block !important; }
+        
+        .loader {
+            display: none;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Prescription Uploader</h1>
+    <p>Upload to Drive & Log to Sheets</p>
+
+    <div class="upload-area" id="dropZone">
+        <input type="file" id="fileInput">
+        <div id="fileLabel">Click or drag file here</div>
+    </div>
+
+    <button class="btn" id="uploadBtn" disabled>Upload File</button>
+    <div class="loader" id="loader"></div>
+    <div id="status"></div>
+</div>
+
+<script>
+    // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyzu3uzUXFORK95ZuwpEY55QpUbYXNp10Bm249qCYASNuGLmHHVuvvFQvXnGkUs93eopQ/exec';
+
+    const fileInput = document.getElementById('fileInput');
+    const fileLabel = document.getElementById('fileLabel');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const status = document.getElementById('status');
+    const loader = document.getElementById('loader');
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            fileLabel.textContent = e.target.files[0].name;
+            uploadBtn.disabled = false;
+        }
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        // UI Updates
+        uploadBtn.disabled = true;
+        loader.style.display = 'block';
+        status.className = '';
+        status.textContent = 'Processing...';
+
+        try {
+            // Convert file to Base64
+            const base64 = await toBase64(file);
+            const payload = {
+                name: file.name,
+                type: file.type,
+                base64: base64.split(',')[1]
+            };
+
+            // Send to Apps Script
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                status.className = 'success';
+                status.innerHTML = `Success! File saved.<br><a href="${result.link}" target="_blank" style="color: inherit">View in Drive</a>`;
+                fileLabel.textContent = "Click or drag file here";
+                fileInput.value = "";
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            status.className = 'error';
+            status.textContent = 'Error: ' + err.message;
+            uploadBtn.disabled = false;
+        } finally {
+            loader.style.display = 'none';
+        }
+    });
+
+    const toBase64 = file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+</script>
+
+</body>
+</html>
